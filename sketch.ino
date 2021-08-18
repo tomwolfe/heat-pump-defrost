@@ -33,8 +33,8 @@ unsigned long total_defrost_fails=0;
 unsigned long turned_on_from_fails=1;
 unsigned long previous_millis_compressor=0;
 unsigned long previous_millis_dht=0;
-unsigned long state_start_lcd = 0;
-const unsigned int INTERVAL=60000;
+unsigned long previous_millis_lcd = 0;
+const unsigned int COMPRESSOR_INTERVAL=60000;
 unsigned long current_millis_compressor=0;
 unsigned long current_millis_dht=0;
 unsigned long current_millis_lcd=0;
@@ -44,7 +44,7 @@ const unsigned int TONE_COUNT = sizeof(TONE_FREQ)/sizeof(int);
 const unsigned int PIEZO_PIN=13;
 boolean sound_state=true;
 unsigned int page = 1;
-const unsigned int DISPLAY_TIME=2500;
+const unsigned int DISPLAY_INTERVAL=2500;
 unsigned long last_interrupt_time = 0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
@@ -74,9 +74,9 @@ void loop() {
   if (checkTimeDHT()) {
     if (measuretemps()) {
       templogic();
+      lcdLogic();
     }
   }
-  lcdLogic();
 }
 
 boolean measuretemps() {
@@ -137,7 +137,7 @@ void heatIndex() {
 }
 
 void difference() {
-  if (checkTimeCompressor(false)) {
+  if (checkTimeCompressor()) {
     last_diff=curr_diff;
     curr_diff=temp_exhaust-temp_ambient;
     Serial.print(F("current difference exhaust-ambient: "));
@@ -153,8 +153,8 @@ void difference() {
 }
 
 void templogic() {
-  if (temp_ambient < (target-SETBACK)) {
-    Serial.println(F("temp_ambient < (target-SETBACK)"));
+  if (heat_index_ambient < (target-SETBACK)) {
+    Serial.println(F("heat_index_ambient < (target-SETBACK)"));
     if (temp_outside > 35) {
       Serial.println(F("temp_outside > 35"));
       if ((curr_diff>MIN_DIFF) || ((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.75)) || (cycle==0)) {
@@ -173,41 +173,35 @@ void templogic() {
     }
   }
   else {
-    Serial.println(F("temp_ambient > (target-SETBACK)"));
+    Serial.println(F("heat_index_ambient > (target-SETBACK)"));
     turnOff();
   }
 }
 
 void turnOn() {
-  if (checkTimeCompressor(true)) {
-    if (!compressor_state) {
-      Serial.println(F("turning on"));
-      digitalWrite(COMPRESSOR, LOW);
-      compressor_state=true;
-      cycle++;
-    }
+  if (!compressor_state) {
+    Serial.println(F("turning on"));
+    digitalWrite(COMPRESSOR, LOW);
+    compressor_state=true;
+    //cycle++;
   }
 }
 
 void turnOff() {
-  if (checkTimeCompressor(true)) {
-    if (compressor_state) {
-     Serial.println(F("turning off"));
-      digitalWrite(COMPRESSOR, HIGH);
-      compressor_state=false;
-      cycle++;
-    }
+  if (compressor_state) {
+   Serial.println(F("turning off"));
+    digitalWrite(COMPRESSOR, HIGH);
+    compressor_state=false;
+    cycle++;
   }
 }
 
-boolean checkTimeCompressor(boolean reset) {
+boolean checkTimeCompressor() {
   if (cycle==0) {
     return true;
   }
-  if ((current_millis_compressor-previous_millis_compressor)>=INTERVAL) {
-    if (reset) {
-      previous_millis_compressor=current_millis_compressor;
-    }
+  if ((current_millis_compressor-previous_millis_compressor)>=COMPRESSOR_INTERVAL) {
+    previous_millis_compressor=current_millis_compressor;
     return true;
   }
   else {
@@ -287,7 +281,7 @@ void setTarget() {
 
 void displayInterrupt(int a) {
   page=a;
-  state_start_lcd = current_millis_lcd; // give time to display
+  previous_millis_lcd = current_millis_lcd; // give time to display
 }
 
 int bounceHandler() {
@@ -325,7 +319,7 @@ void lcdLogic() {
       page++;
       break;
     case 2:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "Ambient: ";
         lineOne=lineOne+temp_ambient+"F";
         lineTwo = "Exhaust: ";
@@ -335,7 +329,7 @@ void lcdLogic() {
       }
       break;
     case 3:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "Outside: ";
         lineOne=lineOne+temp_outside+"F";
         lineTwo = "Ambient: ";
@@ -345,7 +339,7 @@ void lcdLogic() {
       }
       break;
     case 4:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "Exhaust: ";
         lineOne=lineOne+humidity_exhaust+"%";
         lineTwo = "Outside: ";
@@ -355,7 +349,7 @@ void lcdLogic() {
       }
       break;
     case 5:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "HIdx Amb: ";
         lineOne=lineOne+heat_index_ambient+"F";
         lineTwo = "LastDiff: ";
@@ -365,7 +359,7 @@ void lcdLogic() {
       }
       break;
     case 6:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "Cycles: ";
         lineOne=lineOne+cycle;
         lineTwo = "DfrstFails: ";
@@ -375,7 +369,7 @@ void lcdLogic() {
       }
       break;
     case 7:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "TotDefFail: ";
         lineOne=lineOne+total_defrost_fails;
         lineTwo = "OnFromFail: ";
@@ -385,7 +379,7 @@ void lcdLogic() {
       }
       break;
     case 8:
-      if (current_millis_lcd - state_start_lcd >= DISPLAY_TIME) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "SoundState: ";
         lineOne=lineOne+sound_state;
         lineTwo = "compress: ";
@@ -403,5 +397,5 @@ void lcdPrint(String one, String two) {
   lcd.print(one);
   lcd.setCursor(0, 1);
   lcd.print(two);
-  state_start_lcd = current_millis_lcd;
+  previous_millis_lcd = current_millis_lcd;
 }
