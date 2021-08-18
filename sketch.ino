@@ -351,7 +351,7 @@ void lcdLogic() {
     case 5:
       if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "HIdx Amb: ";
-        lineOne=lineOne+heat_index_ambient+"F";
+        lineOne=lineOne+String(heat_index_ambient,2)+"F"; // 2 decimal place
         lineTwo = "LastDiff: ";
         lineTwo=lineTwo+last_diff+"F";
         lcdPrint(lineOne,lineTwo);
