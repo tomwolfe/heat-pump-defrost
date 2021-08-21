@@ -62,7 +62,6 @@ void setup() {
   Serial.begin(9600);
   pinMode(COMPRESSOR, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
-  //turnOff();
   dht_exhaust.begin();
   dht_ambient.begin();
   dht_outside.begin();
@@ -70,7 +69,8 @@ void setup() {
   btn.attachClick(click);
   btn.attachDoubleClick(doubleClick);
   btn.attachLongPressStart(longPress);
-  btn.setPressTicks(2000);
+  btn.setPressTicks(2000); // long press duration
+  compressor_state = (digitalRead(COMPRESSOR) == HIGH ? false : true);
 }
 
 void loop() {
@@ -81,7 +81,6 @@ void loop() {
   Serial.println(cycle);
   if (checkTimeDHT()) {
     if (measuretemps()) {
-      //templogic();
       lcdLogic();
     }
   }
