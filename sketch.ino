@@ -1,6 +1,10 @@
+// OneButton - Version: Latest 
+#include <OneButton.h>
+
 // DHT sensor library - Version: 1.4.2
 #include <DHT.h>
 #include <DHT_U.h>
+
 #include <LiquidCrystal.h>
 
 #define DHTTYPE DHT11
@@ -8,7 +12,8 @@ const unsigned int COMPRESSOR = 7;
 const unsigned int TEMP_SENSOR_EXHAUST = 9;
 const unsigned int TEMP_SENSOR_AMBIENT = 10;
 const unsigned int TEMP_SENSOR_OUTSIDE = 8;
-const unsigned int BUTTON_TEMP = 2;
+const unsigned int BUTTON = 2;
+OneButton btn = OneButton(BUTTON, true, true);
 // LCD interface pins
 const int rs = 12, en = 11, d4 = 6, d5 = 5, d6 = 4, d7 = 3;
 float temp_exhaust;
@@ -20,7 +25,7 @@ float humidity_outside;
 float heat_index_exhaust;
 float heat_index_ambient;
 float heat_index_outside;
-volatile float target=55.0;
+float target=55.0;
 const float SETBACK=1.0;
 const float MIN_DIFF=10.0;
 const float MIN_DIFF_LAST=2.0;
@@ -40,11 +45,11 @@ unsigned long current_millis_dht=0;
 unsigned long current_millis_lcd=0;
 bool compressor_state=false; //true low/on : false high/off
 const unsigned int TONE_FREQ[] = {330, 294, 262};
-const unsigned int TONE_COUNT = sizeof(TONE_FREQ)/sizeof(int);
+const unsigned int TONE_COUNT = sizeof(TONE_FREQ)/sizeof(TONE_FREQ[0]);
 const unsigned int PIEZO_PIN=13;
-boolean sound_state=true;
+bool sound_state=true;
 unsigned int page = 1;
-const unsigned int DISPLAY_INTERVAL=2500;
+const unsigned int DISPLAY_INTERVAL=3200;
 unsigned long last_interrupt_time = 0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
@@ -56,13 +61,16 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 void setup() {
   Serial.begin(9600);
   pinMode(COMPRESSOR, OUTPUT);
-  pinMode(BUTTON_TEMP, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(BUTTON_TEMP), setTarget, FALLING);
+  pinMode(BUTTON, INPUT_PULLUP);
   //turnOff();
   dht_exhaust.begin();
   dht_ambient.begin();
   dht_outside.begin();
   lcd.begin(16, 2);
+  btn.attachClick(click);
+  btn.attachDoubleClick(doubleClick);
+  btn.attachLongPressStart(longPress);
+  btn.setPressTicks(2000);
 }
 
 void loop() {
@@ -73,13 +81,14 @@ void loop() {
   Serial.println(cycle);
   if (checkTimeDHT()) {
     if (measuretemps()) {
-      templogic();
+      //templogic();
       lcdLogic();
     }
   }
+  btn.tick();
 }
 
-boolean measuretemps() {
+bool measuretemps() {
   temp_exhaust= dht_exhaust.readTemperature(true); //true=Fahrenheit, blank Celsius.
   temp_ambient= dht_ambient.readTemperature(true);
   temp_outside= dht_outside.readTemperature(true);
@@ -113,8 +122,8 @@ boolean measuretemps() {
   }
 }
 
-boolean sensorCheck() {
-  boolean flag=false;
+bool sensorCheck() {
+  bool flag=false;
   if (isnan(temp_exhaust) || isnan(humidity_exhaust)) {
     Serial.println(F("Failed to read from exhaust DHT sensor!"));
     flag=true;
@@ -149,6 +158,7 @@ void difference() {
       Serial.print(F("new max diff: "));
       Serial.println(max_diff);
     }
+    templogic();
   }
 }
 
@@ -168,7 +178,7 @@ void templogic() {
       Serial.println(F("temp_outside < 35"));
       turnOff();
       if (sound_state) {
-        tone(PIEZO_PIN, TONE_FREQ[2], 2000);
+        tone(PIEZO_PIN, TONE_FREQ[0], 2000);
       }
     }
   }
@@ -183,7 +193,9 @@ void turnOn() {
     Serial.println(F("turning on"));
     digitalWrite(COMPRESSOR, LOW);
     compressor_state=true;
-    //cycle++;
+    if (cycle==0) {
+      cycle++;
+    }
   }
 }
 
@@ -196,7 +208,7 @@ void turnOff() {
   }
 }
 
-boolean checkTimeCompressor() {
+bool checkTimeCompressor() {
   if (cycle==0) {
     return true;
   }
@@ -209,7 +221,7 @@ boolean checkTimeCompressor() {
   }
 }
 
-boolean checkTimeDHT() {
+bool checkTimeDHT() {
   // dht min delay 2000
   if ((current_millis_dht-previous_millis_dht)>=3000) {
     previous_millis_dht=current_millis_dht;
@@ -233,7 +245,7 @@ void defrostfailed() {
     if (sound_state) {
       for (int j=0; j < turned_on_from_fails; ++j) {
         for (int i=0; i < TONE_COUNT; ++i) {
-          tone(PIEZO_PIN, TONE_FREQ[i], 250);
+          tone(PIEZO_PIN, TONE_FREQ[i], 450);
         }
       }
     }
@@ -256,55 +268,9 @@ void defrostsuccess() {
   turnOn();
 }
 
-void setTarget() {
-  int bh=bounceHandler();
-  if (bh==1) {
-    if (target < 85.0) {
-      target+=5.0;
-    }
-    else  {
-      target=55.0;
-    }
-    displayInterrupt(1);
-  }
-  else if (bh==2) {
-    target=55.0;
-    displayInterrupt(1);
-  }
-  else if (bh==3) {
-    sound_state=!sound_state;
-    displayInterrupt(8);
-  }
-  else {
-  }
-}
-
 void displayInterrupt(int a) {
   page=a;
   previous_millis_lcd = current_millis_lcd; // give time to display
-}
-
-int bounceHandler() {
-  // If interrupts come faster than 50ms, assume it's a bounce and ignore
-  long diff = millis()-last_interrupt_time;
-  if (diff >= 50 && diff <= 1000) {
-    //change target +5
-    return 1;
-  }
-  else if (diff > 1000 && diff <= 3000)
-  {
-    // set target min
-    return 2;
-  }
-  else if (diff > 3000)  {
-    // turn off sound
-    return 3;
-  }
-  else {
-    // bounce
-    return 0;
-  }
-  last_interrupt_time = millis();
 }
 
 void lcdLogic() {
@@ -398,4 +364,19 @@ void lcdPrint(String one, String two) {
   lcd.setCursor(0, 1);
   lcd.print(two);
   previous_millis_lcd = current_millis_lcd;
+}
+
+void doubleClick() {
+  target=55.0;
+  displayInterrupt(1);
+}
+
+void click() {
+  target+=5.0;
+  displayInterrupt(1);
+}
+
+void longPress() {
+  sound_state=!sound_state;
+  displayInterrupt(8);
 }
