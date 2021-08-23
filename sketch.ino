@@ -1,3 +1,6 @@
+// LinearRegression - Version: from github: https://github.com/akkoyun/LinearRegression not in arduino library yet
+#include <LinearRegression.h>
+
 // OneButton - Version: Latest 
 #include <OneButton.h>
 
@@ -26,7 +29,7 @@ float heat_index_exhaust;
 float heat_index_ambient;
 float heat_index_outside;
 float target=55.0;
-const float SETBACK=1.0;
+const float SETBACK=2.0; // dht11 +-1 degree of accuracy
 const float MIN_DIFF=10.0;
 const float MIN_DIFF_LAST=2.0;
 float max_diff=0.0;
@@ -51,6 +54,8 @@ bool sound_state=true;
 unsigned int page = 1;
 const unsigned int DISPLAY_INTERVAL=3200;
 unsigned long last_interrupt_time = 0;
+LinearRegression lr;
+bool sufficient_training=false;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -116,7 +121,11 @@ bool measuretemps() {
     Serial.println(humidity_ambient);
     Serial.print(F("humidity_outside: "));
     Serial.println(humidity_outside);
-    difference();
+    if (targetLogic()) {
+      if (outsideLogic()) {
+        difference();
+      }
+    }
     return true;
   }
 }
@@ -157,33 +166,42 @@ void difference() {
       Serial.print(F("new max diff: "));
       Serial.println(max_diff);
     }
-    templogic();
+    defrostLogic();
   }
 }
 
-void templogic() {
+void defrostLogic() {
+  if ((curr_diff>MIN_DIFF) || ((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.75)) || (cycle==0)) {
+    defrostSuccess();
+  }
+  else {
+    defrostFailed();
+  }
+}
+
+bool targetLogic() {
   if (heat_index_ambient < (target-SETBACK)) {
     Serial.println(F("heat_index_ambient < (target-SETBACK)"));
-    if (temp_outside > 35) {
-      Serial.println(F("temp_outside > 35"));
-      if ((curr_diff>MIN_DIFF) || ((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.75)) || (cycle==0)) {
-        defrostsuccess();
-      }
-      else {
-        defrostfailed();
-      }
-    }
-    else {
-      Serial.println(F("temp_outside < 35"));
-      turnOff();
-      if (sound_state) {
-        tone(PIEZO_PIN, TONE_FREQ[0], 2000);
-      }
-    }
+    return true;
   }
   else {
     Serial.println(F("heat_index_ambient > (target-SETBACK)"));
     turnOff();
+    return false;
+  }
+}
+
+bool outsideLogic() {
+  if (temp_outside > 35) {
+    return true;
+  }
+  else {
+    Serial.println(F("temp_outside < 35"));
+    turnOff();
+    if (sound_state) {
+      tone(PIEZO_PIN, TONE_FREQ[0], 2000);
+    }
+    return false;
   }
 }
 
@@ -231,7 +249,7 @@ bool checkTimeDHT() {
   }
 }
 
-void defrostfailed() {
+void defrostFailed() {
   defrost_fails++;
   total_defrost_fails++;
   Serial.print(F("defrost check failed. Current defrost_fails: "));
@@ -240,26 +258,46 @@ void defrostfailed() {
   Serial.print(total_defrost_fails);
   Serial.print(F("\t turned_on_from_fails: "));
   Serial.println(turned_on_from_fails);
-  if (defrost_fails==5*turned_on_from_fails) {
-    if (sound_state) {
-      for (int j=0; j < turned_on_from_fails; ++j) {
-        for (int i=0; i < TONE_COUNT; ++i) {
-          tone(PIEZO_PIN, TONE_FREQ[i], 450);
-        }
-      }
+  if (sufficient_training) {
+    if (defrost_fails>=(int)lr.Calculate(temp_outside)) { // predict defrost minutes based on temp_outside
+      tryStart();
     }
-    Serial.print(F("defrost failed: "));
-    Serial.print(5*turned_on_from_fails);
-    Serial.println(F(" times, trying to restart"));
-    turnOn();
-    turned_on_from_fails++;
+    else {
+      turnOff();
+    }
   }
   else {
-    turnOff();
+    if (defrost_fails==5*turned_on_from_fails) {
+      tryStart();
+    }
+    else {
+      turnOff();
+    }
   }
 }
 
-void defrostsuccess() {
+void tryStart() {
+  if (sound_state) {
+    for (int j=0; j < turned_on_from_fails; ++j) {
+      for (int i=0; i < TONE_COUNT; ++i) {
+        tone(PIEZO_PIN, TONE_FREQ[i], 450);
+      }
+    }
+  }
+  Serial.print(F("defrost failed: "));
+  Serial.print(5*turned_on_from_fails);
+  Serial.println(F(" times, trying to restart"));
+  turnOn();
+  turned_on_from_fails++;
+}
+
+void defrostSuccess() {
+  lr.Data(temp_outside, (float)defrost_fails); // minimum regression to solve for how long to turn off based on outside_temp
+  if (turned_on_from_fails==2) { // adjust higher if it takes > 10 minutes to defrost
+    sufficient_training=true;
+    Serial.print(F("sufficient training. samples: "));
+    Serial.println(lr.Samples());
+  }
   Serial.println(F("defrost check successful"));
   Serial.println(F("resetting turnedonfromfail and defrost_fails"));
   turned_on_from_fails=1;
