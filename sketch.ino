@@ -1,4 +1,5 @@
-// LinearRegression - Version: from github: https://github.com/akkoyun/LinearRegression not in arduino library yet
+// LinearRegression - Version:
+// from github: https://github.com/akkoyun/LinearRegression not in arduino library yet
 #include <LinearRegression.h>
 
 // OneButton - Version: Latest 
@@ -56,6 +57,12 @@ const unsigned int DISPLAY_INTERVAL=3200;
 unsigned long last_interrupt_time = 0;
 LinearRegression lr;
 bool sufficient_training=false;
+unsigned long running_millis_start=0;
+unsigned long running_millis_end=0;
+unsigned long defrost_millis_start=0;
+unsigned long defrost_millis_end=0;
+unsigned long running_millis_total=0;
+unsigned long defrost_millis_total=0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -93,7 +100,7 @@ void loop() {
 }
 
 bool measuretemps() {
-  temp_exhaust= dht_exhaust.readTemperature(true); //true=Fahrenheit, blank Celsius.
+  temp_exhaust= dht_exhaust.readTemperature(true); // true=Fahrenheit, blank Celsius.
   temp_ambient= dht_ambient.readTemperature(true);
   temp_outside= dht_outside.readTemperature(true);
   humidity_exhaust= dht_exhaust.readHumidity();
@@ -213,15 +220,21 @@ void turnOn() {
     if (cycle==0) {
       cycle++;
     }
+    defrost_millis_end=millis()-defrost_millis_start;
+    defrost_millis_total+=defrost_millis_end;
+    running_millis_start=millis();
   }
 }
 
 void turnOff() {
   if (compressor_state) {
-   Serial.println(F("turning off"));
+    Serial.println(F("turning off"));
     digitalWrite(COMPRESSOR, HIGH);
     compressor_state=false;
     cycle++;
+    running_millis_end=millis()-running_millis_start;
+    running_millis_total+=running_millis_end;
+    defrost_millis_start=millis();
   }
 }
 
@@ -259,7 +272,7 @@ void defrostFailed() {
   Serial.print(F("\t turned_on_from_fails: "));
   Serial.println(turned_on_from_fails);
   if (sufficient_training) {
-    if (defrost_fails>=(int)lr.Calculate(temp_outside)) { // predict defrost minutes based on temp_outside
+    if ((float)defrost_fails>=lr.Calculate(temp_outside)) { // predict defrost minutes
       tryStart();
     }
     else {
@@ -292,8 +305,8 @@ void tryStart() {
 }
 
 void defrostSuccess() {
-  lr.Data(temp_outside, (float)defrost_fails); // minimum regression to solve for how long to turn off based on outside_temp
-  if (turned_on_from_fails==2) { // adjust higher if it takes > 10 minutes to defrost
+  lr.Data(temp_outside, (float)defrost_fails); // minimum regression learning
+  if (turned_on_from_fails==2) {
     sufficient_training=true;
     Serial.print(F("sufficient training. samples: "));
     Serial.println(lr.Samples());
@@ -388,7 +401,35 @@ void lcdLogic() {
         lineTwo = "compress: ";
         lineTwo=lineTwo+compressor_state;
         lcdPrint(lineOne,lineTwo);
-        page = 1;
+        page++;
+      }
+      break;
+    case 9:
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
+        if (compressor_state) {
+          lineOne = "CurRunMin: ";
+          lineOne=lineOne+int((millis()-running_millis_start)/1000/60);
+        }
+        else {
+          lineOne = "CurDfstMin: ";
+          lineOne=lineOne+int((millis()-defrost_millis_start)/1000/60);
+        }
+        lineTwo = "TotDfstMin: ";
+        lineTwo=lineTwo+int((defrost_millis_total)/1000/60);
+        lcdPrint(lineOne,lineTwo);
+        page++;
+      }
+      break;
+    case 10:
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
+        float mb[2];
+        lr.Parameters(mb);
+        lineOne = "TotRunMin: ";
+        lineOne=lineOne+int((running_millis_total)/1000/60);
+        lineTwo = "m: ";
+        lineTwo=lineTwo+String(mb[0],1)+" b: "+String(mb[1],1); //1 decimal place
+        lcdPrint(lineOne,lineTwo);
+        page=1;
       }
       break;
   }
