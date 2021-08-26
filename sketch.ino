@@ -307,9 +307,12 @@ void tryStart() {
 void defrostSuccess() {
   lr.Data(temp_outside, (float)defrost_fails); // minimum regression learning
   if (turned_on_from_fails==2) {
-    sufficient_training=true;
-    Serial.print(F("sufficient training. samples: "));
-    Serial.println(lr.Samples());
+    if (!sufficient_training) {
+      sufficient_training=true;
+      Serial.print(F("sufficient training. samples: "));
+      Serial.println(lr.Samples());
+      displayInterrupt(11);
+    }
   }
   Serial.println(F("defrost check successful"));
   Serial.println(F("resetting turnedonfromfail and defrost_fails"));
@@ -428,6 +431,15 @@ void lcdLogic() {
         lineOne=lineOne+int((running_millis_total)/1000/60);
         lineTwo = "m: ";
         lineTwo=lineTwo+String(mb[0],1)+" b: "+String(mb[1],1); //1 decimal place
+        lcdPrint(lineOne,lineTwo);
+        page++;
+      }
+      break;
+    case 11:
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
+        lineOne = "SuffTrain: ";
+        lineOne=lineOne+sufficient_training;
+        lineTwo = "END";
         lcdPrint(lineOne,lineTwo);
         page=1;
       }
