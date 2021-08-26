@@ -437,9 +437,10 @@ void lcdLogic() {
       break;
     case 11:
       if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
-        lineOne = "SuffTrain: ";
-        lineOne=lineOne+sufficient_training;
-        lineTwo = "END";
+        lineOne = "SufTrn: ";
+        lineOne=lineOne+sufficient_training+":"+lr.Samples();
+        lineTwo = "PredMinDef";
+        lineTwo=lineTwo+lr.Calculate(temp_outside);
         lcdPrint(lineOne,lineTwo);
         page=1;
       }
