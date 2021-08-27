@@ -64,6 +64,7 @@ unsigned long defrost_millis_start=0;
 unsigned long defrost_millis_end=0;
 unsigned long running_millis_total=0;
 unsigned long defrost_millis_total=0;
+unsigned long reset_display_millis=0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -520,7 +521,10 @@ void longPress() {
 
 void resetDisplay() {
   // EMF corruption switching relay
-  delay(500);
-  lcd.begin(16,2);
-  lcd.clear();
+  unsigned int dly=500;
+  if(millis() >= reset_display_millis + dly){
+    reset_display_millis+=dly;
+    lcd.begin(16,2);
+    lcd.clear();
+  }
 }
