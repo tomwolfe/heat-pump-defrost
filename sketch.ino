@@ -29,11 +29,12 @@ float humidity_outside;
 float heat_index_exhaust;
 float heat_index_ambient;
 float heat_index_outside;
-float target=55.0;
+float target=80.0;
 const float SETBACK=2.0; // dht11 +-1 degree of accuracy
 const float MIN_DIFF=10.0;
 const float MIN_DIFF_LAST=2.0;
 float max_diff=0.0;
+float max_diff_cycle=0.0;
 float curr_diff=0.0;
 float last_diff=0.0;
 unsigned long cycle=0;
@@ -53,7 +54,7 @@ const unsigned int TONE_COUNT = sizeof(TONE_FREQ)/sizeof(TONE_FREQ[0]);
 const unsigned int PIEZO_PIN=13;
 bool sound_state=true;
 unsigned int page = 1;
-const unsigned int DISPLAY_INTERVAL=3200;
+const unsigned int DISPLAY_INTERVAL=2800;
 unsigned long last_interrupt_time = 0;
 LinearRegression lr;
 bool sufficient_training=false;
@@ -143,13 +144,28 @@ bool sensorCheck() {
     Serial.println(F("Failed to read from exhaust DHT sensor!"));
     flag=true;
   }
+  else {
+    Serial.println(F("exhaust readings"));
+    Serial.println(temp_exhaust);
+    Serial.println(humidity_exhaust);
+  }
   if (isnan(temp_ambient) || isnan(humidity_ambient)) {
     Serial.println(F("Failed to read from ambient DHT sensor!"));
     flag=true;
   }
+  else {
+    Serial.println(F("ambient readings"));
+    Serial.println(temp_ambient);
+    Serial.println(humidity_ambient);
+  }
   if (isnan(temp_outside) || isnan(humidity_outside)) {
     Serial.println(F("Failed to read from outside DHT sensor!"));
     flag=true;
+  }
+  else {
+    Serial.println(F("outside readings"));
+    Serial.println(temp_outside);
+    Serial.println(humidity_outside);
   }
   return flag;
 }
@@ -173,12 +189,16 @@ void difference() {
       Serial.print(F("new max diff: "));
       Serial.println(max_diff);
     }
+    if (curr_diff>max_diff_cycle) {
+      max_diff_cycle=curr_diff;
+    }
     defrostLogic();
   }
 }
 
 void defrostLogic() {
-  if ((curr_diff>MIN_DIFF) || ((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.75)) || (cycle==0)) {
+  // if ((curr_diff>MIN_DIFF) || ((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.75)) || (cycle==0)) {
+  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.9)) || ((curr_diff>(max_diff_cycle*0.9))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0)) {
     defrostSuccess();
   }
   else {
@@ -217,12 +237,13 @@ void turnOn() {
     Serial.println(F("turning on"));
     digitalWrite(COMPRESSOR, LOW);
     compressor_state=true;
-    if (cycle==0) {
-      cycle++;
-    }
     defrost_millis_end=millis()-defrost_millis_start;
     defrost_millis_total+=defrost_millis_end;
     running_millis_start=millis();
+    resetDisplay();
+  }
+  if (cycle==0) {
+      cycle++;
   }
 }
 
@@ -232,9 +253,11 @@ void turnOff() {
     digitalWrite(COMPRESSOR, HIGH);
     compressor_state=false;
     cycle++;
+    max_diff_cycle=last_diff;
     running_millis_end=millis()-running_millis_start;
     running_millis_total+=running_millis_end;
     defrost_millis_start=millis();
+    resetDisplay();
   }
 }
 
@@ -271,7 +294,8 @@ void defrostFailed() {
   Serial.print(total_defrost_fails);
   Serial.print(F("\t turned_on_from_fails: "));
   Serial.println(turned_on_from_fails);
-  if (sufficient_training) {
+  float def_mins=lr.Calculate(temp_outside); // failsafe if prediction is way off
+  if (sufficient_training && def_mins>3.0) {
     if ((float)defrost_fails>=lr.Calculate(temp_outside)) { // predict defrost minutes
       tryStart();
     }
@@ -305,7 +329,6 @@ void tryStart() {
 }
 
 void defrostSuccess() {
-  lr.Data(temp_outside, (float)defrost_fails); // minimum regression learning
   if (turned_on_from_fails==2) {
     if (!sufficient_training) {
       sufficient_training=true;
@@ -313,6 +336,9 @@ void defrostSuccess() {
       Serial.println(lr.Samples());
       displayInterrupt(11);
     }
+  }
+  if (turned_on_from_fails>=2) {
+    lr.Data(temp_outside, (float)defrost_fails); // minimum regression learning
   }
   Serial.println(F("defrost check successful"));
   Serial.println(F("resetting turnedonfromfail and defrost_fails"));
@@ -437,10 +463,30 @@ void lcdLogic() {
       break;
     case 11:
       if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
-        lineOne = "SufTrn: ";
-        lineOne=lineOne+sufficient_training+":"+lr.Samples();
+        lineOne = "SufTrn:";
+        lineOne=lineOne+sufficient_training;
         lineTwo = "PredMinDef";
-        lineTwo=lineTwo+lr.Calculate(temp_outside);
+        lineTwo=lineTwo+String(lr.Calculate(temp_outside),1); //1 decimal place
+        lcdPrint(lineOne,lineTwo);
+        page++;
+      }
+      break;
+      case 12:
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
+        lineOne = "Samples: ";
+        lineOne=lineOne+lr.Samples();
+        lineTwo = "Max_diff";
+        lineTwo=lineTwo+max_diff;
+        lcdPrint(lineOne,lineTwo);
+        page++;
+      }
+      break;
+      case 13:
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL/2) {
+        lineOne = "maxdiffcy: ";
+        lineOne=lineOne+max_diff_cycle;
+        lineTwo = "END";
+        //lineTwo=lineTwo+max_diff;
         lcdPrint(lineOne,lineTwo);
         page=1;
       }
@@ -470,4 +516,11 @@ void click() {
 void longPress() {
   sound_state=!sound_state;
   displayInterrupt(8);
+}
+
+void resetDisplay() {
+  // EMF corruption switching relay
+  delay(500);
+  lcd.begin(16,2);
+  lcd.clear();
 }
