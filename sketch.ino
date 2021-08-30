@@ -307,7 +307,7 @@ void defrostFailed() {
     }
   }
   else {
-    if (defrost_fails==3*turned_on_from_fails && curr_diff<=3.0) { //verify that exhaust has cooled
+    if (defrost_fails>=3*turned_on_from_fails && curr_diff<=3.0) { //verify that exhaust has cooled
       tryStart();
     }
     else {
