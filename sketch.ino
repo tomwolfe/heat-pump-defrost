@@ -299,20 +299,19 @@ void defrostFailed() {
   Serial.println(turned_on_from_fails);
   float def_mins=lr.Calculate(temp_outside);
   if (sufficient_training && def_mins>=3.0 && def_mins<=20.0) {  // failsafe if prediction is way off
-    if ((float)defrost_fails>=def_mins) { // predict defrost minutes
-      tryStart();
-    }
-    else {
-      turnOff();
-    }
+    tryStartCond(def_mins);
   }
   else {
-    if (defrost_fails>=3*turned_on_from_fails && curr_diff<=3.0) { //verify that exhaust has cooled
-      tryStart();
-    }
-    else {
-      turnOff();
-    }
+    tryStartCond((float)(3*turned_on_from_fails));
+  }
+}
+
+void tryStartCond(float mins) {
+  if ((float)defrost_fails>=mins && curr_diff<=3.0) {
+    tryStart();
+  }
+  else {
+    turnOff();
   }
 }
 
