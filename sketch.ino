@@ -51,6 +51,7 @@ unsigned long current_millis_lcd=0;
 bool compressor_state=false; //true low/on : false high/off
 const unsigned int TONE_FREQ[] = {330, 294, 262};
 const unsigned int TONE_COUNT = sizeof(TONE_FREQ)/sizeof(TONE_FREQ[0]);
+unsigned int tones=0;
 const unsigned int PIEZO_PIN=13;
 bool sound_state=true;
 unsigned int page = 1;
@@ -65,6 +66,7 @@ unsigned long defrost_millis_end=0;
 unsigned long running_millis_total=0;
 unsigned long defrost_millis_total=0;
 unsigned long reset_display_millis=0;
+unsigned long sound_millis=0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -99,6 +101,7 @@ void loop() {
     }
   }
   btn.tick();
+  playTones();
 }
 
 bool measuretemps() {
@@ -198,7 +201,6 @@ void difference() {
 }
 
 void defrostLogic() {
-  // if ((curr_diff>MIN_DIFF) || ((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.75)) || (cycle==0)) {
   if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.9)) || ((curr_diff>(max_diff_cycle*0.9))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0)) {
     defrostSuccess();
   }
@@ -295,9 +297,9 @@ void defrostFailed() {
   Serial.print(total_defrost_fails);
   Serial.print(F("\t turned_on_from_fails: "));
   Serial.println(turned_on_from_fails);
-  float def_mins=lr.Calculate(temp_outside); // failsafe if prediction is way off
-  if (sufficient_training && def_mins>3.0) {
-    if ((float)defrost_fails>=lr.Calculate(temp_outside)) { // predict defrost minutes
+  float def_mins=lr.Calculate(temp_outside);
+  if (sufficient_training && def_mins>=3.0 && def_mins<=20.0) {  // failsafe if prediction is way off
+    if ((float)defrost_fails>=def_mins) { // predict defrost minutes
       tryStart();
     }
     else {
@@ -305,7 +307,7 @@ void defrostFailed() {
     }
   }
   else {
-    if (defrost_fails==5*turned_on_from_fails) {
+    if (defrost_fails==3*turned_on_from_fails) {
       tryStart();
     }
     else {
@@ -314,16 +316,22 @@ void defrostFailed() {
   }
 }
 
-void tryStart() {
-  if (sound_state) {
-    for (int j=0; j < turned_on_from_fails; ++j) {
-      for (int i=0; i < TONE_COUNT; ++i) {
-        tone(PIEZO_PIN, TONE_FREQ[i], 450);
-      }
+void playTones() {
+  if (tones>=0) {
+    if (millis() - sound_millis >= 500) {
+      tone(PIEZO_PIN, TONE_FREQ[tones%TONE_COUNT], 500);
+      tones--;
+      sound_millis=millis();
     }
   }
+}
+
+void tryStart() {
+  if (sound_state) {
+    tones+=TONE_COUNT*turned_on_from_fails;
+  }
   Serial.print(F("defrost failed: "));
-  Serial.print(5*turned_on_from_fails);
+  Serial.print(3*turned_on_from_fails);
   Serial.println(F(" times, trying to restart"));
   turnOn();
   turned_on_from_fails++;
