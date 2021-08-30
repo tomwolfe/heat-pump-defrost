@@ -51,7 +51,7 @@ unsigned long current_millis_lcd=0;
 bool compressor_state=false; //true low/on : false high/off
 const unsigned int TONE_FREQ[] = {330, 294, 262};
 const unsigned int TONE_COUNT = sizeof(TONE_FREQ)/sizeof(TONE_FREQ[0]);
-unsigned int tones=0;
+int tones=0;
 const unsigned int PIEZO_PIN=13;
 bool sound_state=true;
 unsigned int page = 1;
@@ -307,7 +307,7 @@ void defrostFailed() {
     }
   }
   else {
-    if (defrost_fails==3*turned_on_from_fails) {
+    if (defrost_fails==3*turned_on_from_fails && curr_diff<=3.0) { //verify that exhaust has cooled
       tryStart();
     }
     else {
