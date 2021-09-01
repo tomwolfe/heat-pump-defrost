@@ -29,7 +29,7 @@ float humidity_outside;
 float heat_index_exhaust;
 float heat_index_ambient;
 float heat_index_outside;
-float target=80.0;
+float target=90.0;
 const float SETBACK=2.0; // dht11 +-1 degree of accuracy
 const float MIN_DIFF=10.0;
 const float MIN_DIFF_LAST=2.0;
@@ -289,6 +289,9 @@ bool checkTimeDHT() {
 }
 
 void defrostFailed() {
+  if (sound_state && defrost_fails==0) {
+    tones=TONE_COUNT*turned_on_from_fails;
+  }
   defrost_fails++;
   total_defrost_fails++;
   Serial.print(F("defrost check failed. Current defrost_fails: "));
@@ -299,6 +302,9 @@ void defrostFailed() {
   Serial.println(turned_on_from_fails);
   float def_mins=lr.Calculate(temp_outside);
   if (sufficient_training && def_mins>=3.0 && def_mins<=20.0) {  // failsafe if prediction is way off
+    if (turned_on_from_fails>=2) { // if failed before, don't 2x time. smaller steps.
+      def_mins=def_mins*0.25;
+    }
     tryStartCond(def_mins);
   }
   else {
@@ -326,9 +332,6 @@ void playTones() {
 }
 
 void tryStart() {
-  if (sound_state) {
-    tones+=TONE_COUNT*turned_on_from_fails;
-  }
   Serial.print(F("defrost failed: "));
   Serial.print(3*turned_on_from_fails);
   Serial.println(F(" times, trying to restart"));
@@ -528,7 +531,7 @@ void longPress() {
 
 void resetDisplay() {
   // EMF corruption switching relay
-  unsigned int dly=500;
+  unsigned int dly=1500;
   if(millis() >= reset_display_millis + dly){
     reset_display_millis+=dly;
     lcd.begin(16,2);
