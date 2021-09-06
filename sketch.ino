@@ -41,6 +41,7 @@ unsigned long cycle=0;
 unsigned long defrost_fails=0;
 unsigned long total_defrost_fails=0;
 unsigned long turned_on_from_fails=1;
+unsigned long total_turned_on_from_fails=0;
 unsigned long previous_millis_compressor=0;
 unsigned long previous_millis_dht=0;
 unsigned long previous_millis_lcd = 0;
@@ -55,7 +56,7 @@ int tones=0;
 const unsigned int PIEZO_PIN=13;
 bool sound_state=true;
 unsigned int page = 1;
-const unsigned int DISPLAY_INTERVAL=2800;
+const unsigned int DISPLAY_INTERVAL=1700;
 unsigned long last_interrupt_time = 0;
 LinearRegression lr;
 bool sufficient_training=false;
@@ -66,6 +67,7 @@ unsigned long defrost_millis_end=0;
 unsigned long running_millis_total=0;
 unsigned long defrost_millis_total=0;
 unsigned long reset_display_millis=0;
+const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
@@ -201,7 +203,7 @@ void difference() {
 }
 
 void defrostLogic() {
-  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.9)) || ((curr_diff>(max_diff_cycle*0.9))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0)) {
+  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.95)) || ((curr_diff>(max_diff_cycle*0.95))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0)) {
     defrostSuccess();
   }
   else {
@@ -226,7 +228,7 @@ bool outsideLogic() {
     return true;
   }
   else {
-    Serial.println(F("temp_outside < 35"));
+    Serial.println(F("temp_outside =< 35"));
     turnOff();
     if (sound_state) {
       tone(PIEZO_PIN, TONE_FREQ[0], 2000);
@@ -289,7 +291,7 @@ bool checkTimeDHT() {
 }
 
 void defrostFailed() {
-  if (sound_state && defrost_fails==0) {
+  if (sound_state && defrost_fails==0 && turned_on_from_fails >=2) {
     tones=TONE_COUNT*turned_on_from_fails;
   }
   defrost_fails++;
@@ -301,19 +303,22 @@ void defrostFailed() {
   Serial.print(F("\t turned_on_from_fails: "));
   Serial.println(turned_on_from_fails);
   float def_mins=lr.Calculate(temp_outside);
-  if (sufficient_training && def_mins>=3.0 && def_mins<=20.0) {  // failsafe if prediction is way off
+  if (sufficient_training && def_mins>=1.0 && def_mins<=10.0) {  // failsafe if prediction is way off
     if (turned_on_from_fails>=2) { // if failed before, don't 2x time. smaller steps.
       def_mins=def_mins*0.25;
+    }
+    if (def_mins >= 3.0) { // try to pull down training defrost time
+      def_mins--;
     }
     tryStartCond(def_mins);
   }
   else {
-    tryStartCond((float)(3*turned_on_from_fails));
+    tryStartCond((float)(2*turned_on_from_fails));
   }
 }
 
 void tryStartCond(float mins) {
-  if ((float)defrost_fails>=mins && curr_diff<=3.0) {
+  if ((float)defrost_fails>=mins && curr_diff<=5.0) {
     tryStart();
   }
   else {
@@ -337,6 +342,9 @@ void tryStart() {
   Serial.println(F(" times, trying to restart"));
   turnOn();
   turned_on_from_fails++;
+  if (turned_on_from_fails>2) {
+    total_turned_on_from_fails++;
+  }
 }
 
 void defrostSuccess() {
@@ -493,11 +501,11 @@ void lcdLogic() {
       }
       break;
       case 13:
-      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL/2) {
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "maxdiffcy: ";
         lineOne=lineOne+max_diff_cycle;
-        lineTwo = "END";
-        //lineTwo=lineTwo+max_diff;
+        lineTwo = "totOnFrFail: ";
+        lineTwo=lineTwo+total_turned_on_from_fails;
         lcdPrint(lineOne,lineTwo);
         page=1;
       }
@@ -531,9 +539,8 @@ void longPress() {
 
 void resetDisplay() {
   // EMF corruption switching relay
-  unsigned int dly=1500;
-  if(millis() >= reset_display_millis + dly){
-    reset_display_millis+=dly;
+  if(millis() >= reset_display_millis + RESET_DISPLAY_DELAY){
+    reset_display_millis=millis();
     lcd.begin(16,2);
     lcd.clear();
   }
