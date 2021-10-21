@@ -31,7 +31,7 @@ float heat_index_ambient;
 float heat_index_outside;
 float target=90.0;
 const float SETBACK=2.0; // dht11 +-1 degree of accuracy
-const float MIN_DIFF=10.0;
+const float MIN_DIFF=15.0;
 const float MIN_DIFF_LAST=2.0;
 float max_diff=0.0;
 float max_diff_cycle=0.0;
@@ -69,6 +69,7 @@ unsigned long defrost_millis_total=0;
 unsigned long reset_display_millis=0;
 const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
+bool bypass=false;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -203,7 +204,7 @@ void difference() {
 }
 
 void defrostLogic() {
-  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.95)) || ((curr_diff>(max_diff_cycle*0.95))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0)) {
+  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.95)) || ((curr_diff>(max_diff_cycle*0.95))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0) || (bypass==true)) {
     defrostSuccess();
   }
   else {
@@ -219,6 +220,7 @@ bool targetLogic() {
   else {
     Serial.println(F("heat_index_ambient > (target-SETBACK)"));
     turnOff();
+    bypass=true;
     return false;
   }
 }
@@ -233,6 +235,7 @@ bool outsideLogic() {
     if (sound_state) {
       tone(PIEZO_PIN, TONE_FREQ[0], 2000);
     }
+    bypass=true;
     return false;
   }
 }
@@ -310,6 +313,9 @@ void defrostFailed() {
     if (def_mins >= 3.0) { // try to pull down training defrost time
       def_mins--;
     }
+    if (max_diff_cycle<MIN_DIFF) { // longer if not hitting min
+      def_mins+=2;
+    }
     tryStartCond(def_mins);
   }
   else {
@@ -318,7 +324,7 @@ void defrostFailed() {
 }
 
 void tryStartCond(float mins) {
-  if ((float)defrost_fails>=mins && curr_diff<=5.0) {
+  if ((float)defrost_fails>=mins && curr_diff<=3.5) {
     tryStart();
   }
   else {
@@ -356,13 +362,14 @@ void defrostSuccess() {
       displayInterrupt(11);
     }
   }
-  if (turned_on_from_fails>=2) {
+  if (turned_on_from_fails>=2 && bypass==false) {
     lr.Data(temp_outside, (float)defrost_fails); // minimum regression learning
   }
   Serial.println(F("defrost check successful"));
   Serial.println(F("resetting turnedonfromfail and defrost_fails"));
   turned_on_from_fails=1;
   defrost_fails=0;
+  bypass=false;
   turnOn();
 }
 
