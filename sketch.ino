@@ -261,7 +261,6 @@ void turnOff() {
     digitalWrite(COMPRESSOR, HIGH);
     compressor_state=false;
     cycle++;
-    max_diff_cycle=last_diff;
     running_millis_end=millis()-running_millis_start;
     running_millis_total+=running_millis_end;
     defrost_millis_start=millis();
