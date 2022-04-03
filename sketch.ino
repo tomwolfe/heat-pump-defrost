@@ -67,9 +67,11 @@ unsigned long defrost_millis_end=0;
 unsigned long running_millis_total=0;
 unsigned long defrost_millis_total=0;
 unsigned long reset_display_millis=0;
+unsigned long undertemp_millis_start=0;
 const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
 bool bypass=false;
+const float UNDERTEMP=36.0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -226,15 +228,22 @@ bool targetLogic() {
 }
 
 bool outsideLogic() {
-  if (temp_outside > 35) {
-    return true;
+  if (temp_outside > UNDERTEMP) {
+    if ( ((millis()-undertemp_millis_start)>(60000*3)) || (cycle==0) ) {
+      return true;
+    }
+    else {
+      return false;
+    }
   }
   else {
-    Serial.println(F("temp_outside =< 35"));
+    Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
+    Serial.println(UNDERTEMP);
     turnOff();
     if (sound_state) {
       tone(PIEZO_PIN, TONE_FREQ[0], 2000);
     }
+    undertemp_millis_start=millis();
     bypass=true;
     return false;
   }
@@ -261,6 +270,7 @@ void turnOff() {
     digitalWrite(COMPRESSOR, HIGH);
     compressor_state=false;
     cycle++;
+    max_diff_cycle=last_diff;
     running_millis_end=millis()-running_millis_start;
     running_millis_total+=running_millis_end;
     defrost_millis_start=millis();
@@ -305,11 +315,11 @@ void defrostFailed() {
   Serial.print(F("\t turned_on_from_fails: "));
   Serial.println(turned_on_from_fails);
   float def_mins=lr.Calculate(temp_outside);
-  if (sufficient_training && def_mins>=1.0 && def_mins<=10.0) {  // failsafe if prediction is way off
+  if (sufficient_training && def_mins>=3.0 && def_mins<=10.0) {  // failsafe if prediction is way off
     if (turned_on_from_fails>=2) { // if failed before, don't 2x time. smaller steps.
       def_mins=def_mins*0.25;
     }
-    if (def_mins >= 3.0) { // try to pull down training defrost time
+    if (def_mins >= 4.0) { // try to pull down training defrost time
       def_mins--;
     }
     if (max_diff_cycle<MIN_DIFF) { // longer if not hitting min
