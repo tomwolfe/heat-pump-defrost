@@ -72,6 +72,7 @@ const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
 bool bypass=false;
 const float UNDERTEMP=36.0;
+bool undertemp_state=false;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -206,7 +207,7 @@ void difference() {
 }
 
 void defrostLogic() {
-  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.95)) || ((curr_diff>(max_diff_cycle*0.95))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0) || (bypass==true)) {
+  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.96)) || ((curr_diff>(max_diff_cycle*0.96))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0) || (bypass==true)) {
     defrostSuccess();
   }
   else {
@@ -230,9 +231,11 @@ bool targetLogic() {
 bool outsideLogic() {
   if (temp_outside > UNDERTEMP) {
     if ( ((millis()-undertemp_millis_start)>(60000*3)) || (cycle==0) ) {
+      undertemp_state=false;
       return true;
     }
     else {
+      undertemp_state=true;
       return false;
     }
   }
@@ -245,6 +248,8 @@ bool outsideLogic() {
     }
     undertemp_millis_start=millis();
     bypass=true;
+    undertemp_state=true;
+    displayInterrupt(14);
     return false;
   }
 }
@@ -333,7 +338,7 @@ void defrostFailed() {
 }
 
 void tryStartCond(float mins) {
-  if ((float)defrost_fails>=mins && curr_diff<=3.5) {
+  if ((float)defrost_fails>=mins && curr_diff<=4.1) {
     tryStart();
   }
   else {
@@ -522,6 +527,16 @@ void lcdLogic() {
         lineOne=lineOne+max_diff_cycle;
         lineTwo = "totOnFrFail: ";
         lineTwo=lineTwo+total_turned_on_from_fails;
+        lcdPrint(lineOne,lineTwo);
+        page++;
+      }
+      break;
+      case 14:
+      if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
+        lineOne = "undertemp_state: ";
+        lineOne=lineOne+undertemp_state;
+        lineTwo = "END: ";
+        lineTwo=lineTwo;
         lcdPrint(lineOne,lineTwo);
         page=1;
       }
