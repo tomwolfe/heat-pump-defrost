@@ -243,9 +243,7 @@ bool outsideLogic() {
     Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
     Serial.println(UNDERTEMP);
     turnOff();
-    if (sound_state) {
-      tone(PIEZO_PIN, TONE_FREQ[0], 2000);
-    }
+    playTone(PIEZO_PIN, TONE_FREQ[0], 2000);
     undertemp_millis_start=millis();
     bypass=true;
     undertemp_state=true;
@@ -349,7 +347,7 @@ void tryStartCond(float mins) {
 void playTones() {
   if (tones>=0) {
     if (millis() - sound_millis >= 500) {
-      tone(PIEZO_PIN, TONE_FREQ[tones%TONE_COUNT], 500);
+      playTone(PIEZO_PIN, TONE_FREQ[tones%TONE_COUNT], 500);
       tones--;
       sound_millis=millis();
     }
@@ -574,5 +572,11 @@ void resetDisplay() {
     reset_display_millis=millis();
     lcd.begin(16,2);
     lcd.clear();
+  }
+}
+
+void playTone(int a_tone, int duration) {
+  if (sound_state) {
+    tone(PIEZO_PIN, a_tone, duration);
   }
 }
