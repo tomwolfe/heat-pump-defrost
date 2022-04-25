@@ -336,18 +336,22 @@ void defrostFailed() {
   float def_mins=lr.Calculate(temp_outside);
   if (sufficient_training && def_mins>=3.0 && def_mins<=10.0) {  // failsafe if prediction is way off
     if (turned_on_from_fails>=2) { // if failed before, don't 2x time. smaller steps.
-      def_mins=def_mins*0.25;
+      def_mins=def_mins+(def_mins*0.25);
     }
-    if (def_mins >= 4.0) { // try to pull down training defrost time
-      def_mins--;
-    }
-    if (max_diff_cycle<MIN_DIFF) { // longer if not hitting min
-      def_mins+=2;
+    else {
+      if (max_diff_cycle<MIN_DIFF) { // longer if not hitting min
+        def_mins+=2;
+      }
+      else {
+        if (def_mins >= 4.0) { // try to pull down training defrost time
+          def_mins--;
+        }
+      }
     }
     tryStartCond(def_mins);
   }
   else {
-    tryStartCond((float)(2*turned_on_from_fails));
+    tryStartCond((float)(3*turned_on_from_fails));
   }
 }
 
