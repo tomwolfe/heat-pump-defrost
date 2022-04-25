@@ -361,7 +361,7 @@ void tryStartCond(float mins) {
 }
 
 void playTones() {
-  if (tones>=0) {
+  if (tones>0) {
     if (millis() - sound_millis >= 500) {
       playTone(TONE_FREQ[tones%TONE_COUNT], 500);
       tones--;
