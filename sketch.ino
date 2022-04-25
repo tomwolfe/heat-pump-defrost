@@ -31,7 +31,7 @@ float heat_index_ambient;
 float heat_index_outside;
 float target=90.0;
 const float SETBACK=2.0; // dht11 +-1 degree of accuracy
-const float MIN_DIFF=15.0;
+const float MIN_DIFF=10.0; // depends on fan speed/etc
 const float MIN_DIFF_LAST=2.0;
 float max_diff=0.0;
 float max_diff_cycle=0.0;
@@ -71,7 +71,7 @@ unsigned long undertemp_millis_start=0;
 const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
 bool bypass=false;
-const float UNDERTEMP=36.0;
+const float UNDERTEMP=34.0;
 bool undertemp_state=false;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
@@ -216,7 +216,7 @@ void defrostLogic() {
 }
 
 bool targetLogic() {
-  if (heat_index_ambient < (target-SETBACK)) {
+  if (heat_index_ambient < (target-SETBACK)) { // TODO: implement proper setback.
     Serial.println(F("heat_index_ambient < (target-SETBACK)"));
     return true;
   }
@@ -230,7 +230,7 @@ bool targetLogic() {
 
 bool outsideLogic() {
   if (temp_outside > UNDERTEMP) {
-    if ( ((millis()-undertemp_millis_start)>(60000*3)) || (cycle==0) ) {
+    if ((((millis()-undertemp_millis_start)>(60000*3)) && (temp_outside > (UNDERTEMP+SETBACK))) || (cycle==0) ) {
       undertemp_state=false;
       return true;
     }
@@ -243,7 +243,7 @@ bool outsideLogic() {
     Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
     Serial.println(UNDERTEMP);
     turnOff();
-    playTone(PIEZO_PIN, TONE_FREQ[0], 2000);
+    playTone(TONE_FREQ[0], 2000);
     undertemp_millis_start=millis();
     bypass=true;
     undertemp_state=true;
@@ -347,7 +347,7 @@ void tryStartCond(float mins) {
 void playTones() {
   if (tones>=0) {
     if (millis() - sound_millis >= 500) {
-      playTone(PIEZO_PIN, TONE_FREQ[tones%TONE_COUNT], 500);
+      playTone(TONE_FREQ[tones%TONE_COUNT], 500);
       tones--;
       sound_millis=millis();
     }
@@ -531,7 +531,7 @@ void lcdLogic() {
       break;
       case 14:
       if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
-        lineOne = "undertemp_state: ";
+        lineOne = "undertemp: ";
         lineOne=lineOne+undertemp_state;
         lineTwo = "END: ";
         lineTwo=lineTwo;
