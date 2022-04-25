@@ -335,7 +335,7 @@ void defrostFailed() {
   Serial.println(turned_on_from_fails);
   float def_mins=lr.Calculate(temp_outside);
   if (sufficient_training && def_mins>=3.0 && def_mins<=10.0) {  // failsafe if prediction is way off
-    if (turned_on_from_fails>=2) { // if failed before, don't 2x time. smaller steps.
+    if (turned_on_from_fails>2) { // if failed before, don't 2x time. smaller steps.
       def_mins=def_mins+(def_mins*0.25);
     }
     else {
