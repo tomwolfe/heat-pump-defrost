@@ -68,11 +68,13 @@ unsigned long running_millis_total=0;
 unsigned long defrost_millis_total=0;
 unsigned long reset_display_millis=0;
 unsigned long undertemp_millis_start=0;
+unsigned long target_millis_start=0;
 const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
 bool bypass=false;
 const float UNDERTEMP=34.0;
 bool undertemp_state=false;
+bool target_state=false;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -215,22 +217,36 @@ void defrostLogic() {
   }
 }
 
-bool targetLogic() {
-  if (heat_index_ambient < (target-SETBACK)) { // TODO: implement proper setback.
-    Serial.println(F("heat_index_ambient < (target-SETBACK)"));
-    return true;
+bool targetLogic() {  // Idea/TODO: maybe merge targetLogic() and outsideLogic()
+  if (heat_index_ambient < target) {
+    if ( ((target_state) && ((millis()-target_millis_start)>(60000*3)) && (heat_index_ambient < (target-SETBACK))) || (!target_state) ) {
+      Serial.println(F("heat_index_ambient < (target-SETBACK)"));
+      target_state=false;
+      return true;
+    }
+    else {
+      Serial.println(F("heat_index_ambient > (target-SETBACK)"));
+      turnOff();
+      bypass=true;
+      target_state=true;
+      return false;
+    }
   }
   else {
     Serial.println(F("heat_index_ambient > (target-SETBACK)"));
     turnOff();
+    playTone(TONE_FREQ[2], 2000);
+    target_millis_start=millis();
     bypass=true;
+    target_state=true;
+    displayInterrupt(14);
     return false;
   }
 }
 
 bool outsideLogic() {
   if (temp_outside > UNDERTEMP) {
-    if ((((millis()-undertemp_millis_start)>(60000*3)) && (temp_outside > (UNDERTEMP+SETBACK))) || (cycle==0) ) {
+    if ( ((undertemp_state) && ((millis()-undertemp_millis_start)>(60000*3)) && (temp_outside > (UNDERTEMP+SETBACK))) || (!undertemp_state) ) {
       undertemp_state=false;
       return true;
     }
@@ -533,8 +549,8 @@ void lcdLogic() {
       if (current_millis_lcd - previous_millis_lcd >= DISPLAY_INTERVAL) {
         lineOne = "undertemp: ";
         lineOne=lineOne+undertemp_state;
-        lineTwo = "END: ";
-        lineTwo=lineTwo;
+        lineTwo = "target_state: ";
+        lineTwo=lineTwo+target_state;
         lcdPrint(lineOne,lineTwo);
         page=1;
       }
