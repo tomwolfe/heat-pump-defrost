@@ -31,7 +31,7 @@ float heat_index_ambient;
 float heat_index_outside;
 float target=90.0;
 const float SETBACK=2.0; // dht11 +-1 degree of accuracy
-const float MIN_DIFF=10.0; // depends on fan speed/etc
+const float MIN_DIFF=13.0; // depends on fan speed/etc
 const float MIN_DIFF_LAST=2.0;
 float max_diff=0.0;
 float max_diff_cycle=0.0;
@@ -71,7 +71,7 @@ unsigned long undertemp_millis_start=0;
 unsigned long target_millis_start=0;
 const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
-bool bypass=false;
+bool bypass=false; // bypass learning mostly, eg hit target or undertemp
 const float UNDERTEMP=34.0;
 bool undertemp_state=false;
 bool target_state=false;
@@ -141,11 +141,9 @@ bool measuretemps() {
     Serial.println(humidity_ambient);
     Serial.print(F("humidity_outside: "));
     Serial.println(humidity_outside);
-    if (targetLogic()) {
-      if (outsideLogic()) {
-        difference();
-      }
-    }
+    targetLogic();
+    outsideLogic();
+    difference();
     return true;
   }
 }
@@ -217,55 +215,54 @@ void defrostLogic() {
   }
 }
 
-bool targetLogic() {  // Idea/TODO: maybe merge targetLogic() and outsideLogic()
+void targetLogic() {  // Idea/TODO: maybe merge targetLogic() and outsideLogic()
   if (heat_index_ambient < target) {
     if ( ((target_state) && ((millis()-target_millis_start)>(60000*3)) && (heat_index_ambient < (target-SETBACK))) || (!target_state) ) {
       Serial.println(F("heat_index_ambient < (target-SETBACK)"));
       target_state=false;
-      return true;
     }
     else {
-      Serial.println(F("heat_index_ambient > (target-SETBACK)"));
-      turnOff();
-      bypass=true;
-      target_state=true;
-      return false;
+      targetHit();
     }
   }
   else {
-    Serial.println(F("heat_index_ambient > (target-SETBACK)"));
-    turnOff();
-    playTone(TONE_FREQ[2], 2000);
-    target_millis_start=millis();
-    bypass=true;
-    target_state=true;
+    targetHit();
+    playTone(TONE_FREQ[2], 500);
     displayInterrupt(14);
-    return false;
   }
 }
 
-bool outsideLogic() {
+void targetHit() {
+  Serial.println(F("heat_index_ambient > (target-SETBACK)"));
+  turnOff();
+  target_millis_start=millis();
+  bypass=true;
+  target_state=true;
+}
+
+void outsideLogic() {
   if (temp_outside > UNDERTEMP) {
     if ( ((undertemp_state) && ((millis()-undertemp_millis_start)>(60000*3)) && (temp_outside > (UNDERTEMP+SETBACK))) || (!undertemp_state) ) {
       undertemp_state=false;
-      return true;
     }
     else {
-      undertemp_state=true;
-      return false;
+      undertempHit();
     }
   }
   else {
-    Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
-    Serial.println(UNDERTEMP);
-    turnOff();
-    playTone(TONE_FREQ[0], 2000);
-    undertemp_millis_start=millis();
-    bypass=true;
-    undertemp_state=true;
+    undertempHit();
     displayInterrupt(14);
-    return false;
   }
+}
+
+void undertempHit() {
+  Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
+  Serial.println(UNDERTEMP);
+  turnOff();
+  undertemp_millis_start=millis();
+  bypass=true;
+  undertemp_state=true;
+  playTone(TONE_FREQ[0], 2000);
 }
 
 void turnOn() {
@@ -335,18 +332,13 @@ void defrostFailed() {
   Serial.println(turned_on_from_fails);
   float def_mins=lr.Calculate(temp_outside);
   if (sufficient_training && def_mins>=3.0 && def_mins<=10.0) {  // failsafe if prediction is way off
-    if (turned_on_from_fails>2) { // if failed before, don't 2x time. smaller steps.
-      def_mins=def_mins+(def_mins*0.25);
+    if ((turned_on_from_fails>2) || (max_diff_cycle<MIN_DIFF)) { // if failed before, don't 2x time. smaller steps.
+      def_mins++;
+    }
+    else if (def_mins >= 4.0) { // try to pull down training defrost time
+      def_mins--;
     }
     else {
-      if (max_diff_cycle<MIN_DIFF) { // longer if not hitting min
-        def_mins+=2;
-      }
-      else {
-        if (def_mins >= 4.0) { // try to pull down training defrost time
-          def_mins--;
-        }
-      }
     }
     tryStartCond(def_mins);
   }
