@@ -71,7 +71,7 @@ unsigned long undertemp_millis_start=0;
 unsigned long target_millis_start=0;
 const unsigned int RESET_DISPLAY_DELAY=3000;
 unsigned long sound_millis=0;
-bool bypass=false; // bypass learning mostly, eg hit target or undertemp
+bool bypass=false; // bypass learning mostly
 const float UNDERTEMP=34.0;
 bool undertemp_state=false;
 bool target_state=false;
@@ -227,7 +227,7 @@ void targetLogic() {  // Idea/TODO: maybe merge targetLogic() and outsideLogic()
   }
   else {
     targetHit();
-    playTone(TONE_FREQ[2], 500);
+    playTone(TONE_FREQ[2], 2000);
     displayInterrupt(14);
   }
 }
@@ -252,6 +252,7 @@ void outsideLogic() {
   else {
     undertempHit();
     displayInterrupt(14);
+    playTone(TONE_FREQ[0], 2000);
   }
 }
 
@@ -262,7 +263,6 @@ void undertempHit() {
   undertemp_millis_start=millis();
   bypass=true;
   undertemp_state=true;
-  playTone(TONE_FREQ[0], 2000);
 }
 
 void turnOn() {
