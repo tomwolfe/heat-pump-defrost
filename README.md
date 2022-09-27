@@ -39,14 +39,3 @@ The LCD display gets corrupted after turning on and off the relay. My relay does
 
 # credits
 Idea from [Franklin Hu](https://www.youtube.com/watch?v=wpsMVukBvG0&t=152s).
-
-# EasyEDA PCB for esp32-wroom-32d
-Update 9/22/22:
-
-[EasyEDA PCB](https://u.easyeda.com/tomwolfe/endall)
-
-Updated code coming soon for esp32/Arduino cloud.
-
-I have a few extra PCBs from above that I can sell, contact me.
-
-I'll probably move everything to an Arduino uno branch and make main esp32.
