@@ -1,7 +1,6 @@
 # heat-pump-defrost
-Arduino esp32 project to defrost window AC's used as heat pumps.
-Tested and working [demo on youtube, arduino-uno branch, esp32 in development](https://www.youtube.com/watch?v=FBvkNjNMhIM).
-It's my first Arduino project and I'm definitely a noob with hardware/electronics.
+Arduino esp32 project to defrost window AC's used as heat pumps. In development.
+Arduino uno branch tested and working [demo on youtube](https://www.youtube.com/watch?v=FBvkNjNMhIM).
 
 # parts
 * esp32-wroom-32d ($3 aliexpress)
@@ -40,3 +39,6 @@ Update 9/22/22:
 Updated code coming soon for esp32/Arduino cloud. wifi + arduino cloud = control over the cloud
 
 I have a few extra PCBs from above that I can sell, contact me.
+
+# Setup
+[drivers for esp32](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers?tab=downloads)
