@@ -1,14 +1,13 @@
 # heat-pump-defrost
-Arduino esp32 project to defrost window AC's used as heat pumps. In development.
-Arduino uno branch tested and working [demo on youtube](https://www.youtube.com/watch?v=FBvkNjNMhIM).
+Arduino esp32 project to defrost window AC's used as heat pumps. Tested and working, just have to fix the PCB design since the ambient temperature is wired wrong. Use the pin in the sketch file. 
+Old unsupported Arduino uno branch tested and working [demo on youtube](https://www.youtube.com/watch?v=FBvkNjNMhIM).
 
 # parts
 * esp32-wroom-32d ($3 aliexpress)
-* 20A (or more) relay ($15 amazon)
+* 25A (or as needed) solid state relay ($15 amazon)
 * passive buzzer (Arduino kit ~$30)
 * LCD1602 w/i2c ($5 aliexpress)
 * 3x dht11 temperature sensors ($11 amazon)
-* button (Arduino kit ~$30)
 * wires (Arduino kit ~$30) and sufficient gauge wire for relay.
 * 16 awg male spade crimp connectors (to connect relay to compressor) ~$1.50/ebay
 
