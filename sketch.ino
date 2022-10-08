@@ -13,8 +13,8 @@
 
 #define DHTTYPE DHT11
 const unsigned int COMPRESSOR = 2;
-const unsigned int TEMP_SENSOR_EXHAUST = 35;
-const unsigned int TEMP_SENSOR_AMBIENT = 34;
+const unsigned int TEMP_SENSOR_EXHAUST = 25;
+const unsigned int TEMP_SENSOR_AMBIENT = 33;
 const unsigned int TEMP_SENSOR_OUTSIDE = 32;
 const unsigned int BUTTON = 13;
 OneButton btn = OneButton(BUTTON, true, true);
@@ -22,7 +22,7 @@ OneButton btn = OneButton(BUTTON, true, true);
 // i2c now... const int rs = 12, en = 11, d4 = 6, d5 = 5, d6 = 4, d7 = 3;
 float temp_exhaust;
 float temp_ambient;
-float temp_outside;
+//float temp_outside;
 float humidity_exhaust;
 float humidity_ambient;
 float humidity_outside;
@@ -75,7 +75,7 @@ bool bypass=false; // bypass learning mostly when undertemp/targethit
 const float UNDERTEMP=34.0;
 bool undertemp_state=false;
 bool target_reached=false;
-//float def_mins=0.0; //
+float def_mins=0.0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -93,9 +93,9 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
   The following variables are automatically generated and updated when changes are made to the Thing
 
   float curr_diff;
-  float def_mins;
   float max_diff_cycle;
   float target;
+  float temp_outside;
   bool compressor_state;
 
   Variables which are marked as READ/WRITE in the Cloud Thing will also have functions
@@ -107,7 +107,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void setup() {
   // Initialize serial and wait for port to open:
-  Serial.begin(115200);
+  Serial.begin(9600);
   // This delay gives the chance to wait for a Serial Monitor without blocking if none is found
   delay(1500);
   target=90.0;
@@ -122,7 +122,7 @@ void setup() {
   btn.attachDoubleClick(doubleClick);
   btn.attachLongPressStart(longPress);
   btn.setPressTicks(2000); // long press duration
-  compressor_state = (digitalRead(COMPRESSOR) == HIGH ? false : true);
+  compressor_state = (digitalRead(COMPRESSOR) == HIGH ? true : false);
 
   // Defined in thingProperties.h
   initProperties();
@@ -315,7 +315,7 @@ void undertempHit() {
 void turnOn() {
   if (!compressor_state) {
     Serial.println(F("turning on"));
-    digitalWrite(COMPRESSOR, LOW);
+    digitalWrite(COMPRESSOR, HIGH);
     compressor_state=true;
     defrost_millis_end=millis()-defrost_millis_start;
     defrost_millis_total+=defrost_millis_end;
@@ -330,7 +330,7 @@ void turnOn() {
 void turnOff() {
   if (compressor_state) {
     Serial.println(F("turning off"));
-    digitalWrite(COMPRESSOR, HIGH);
+    digitalWrite(COMPRESSOR, LOW);
     compressor_state=false;
     cycle++;
     max_diff_cycle=last_diff;
