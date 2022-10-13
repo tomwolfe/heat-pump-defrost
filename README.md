@@ -1,5 +1,5 @@
 # heat-pump-defrost
-Arduino esp32 project to defrost window AC's used as heat pumps. Tested and working, just have to fix the PCB design since the ambient temperature is wired wrong. Use the pin in the sketch file. 
+Arduino esp32 project to defrost window AC's used as heat pumps. Tested and working, just have to fix the PCB design since the ambient temperature is wired wrong. Use the pin in the sketch file (EasyEDA PCB link below). 
 Old unsupported Arduino uno branch tested and working [demo on youtube](https://www.youtube.com/watch?v=FBvkNjNMhIM).
 
 # parts
@@ -25,7 +25,7 @@ The button switch can change temperature with a single click, sets temperature t
 Heat pumps are super efficient above 40F or so. I'm in a rental house so I can't install a split/mini split system. I'm mostly looking to save on my liquid propane bill since right now (Aug 2021) propane is about $1.87/gal and my time-of-use electric is between $0.06-0.12/kWh. [calculator for heating cost](https://www.efficiencymaine.com/at-home/heating-cost-comparison/). It could potentially save a few hundred dollars per year on heating until it gets below freezing (Northen Wisconsin here). Seemed worth the $50 in parts and it's kind of a fun project. Win win.
 
 # Issues
-The LCD display gets corrupted after turning on and off the relay. My relay does have a flyback diode so I don't think it's that. It's also optically isolated. I've tried powering from a different circuit than the air conditioner, twisting the positive and negative wires to the relay from the Arduino and wrapping the Arduino in foil to act as a faraday cage. None of that helped. I could try a separate power supply for the relay, a solid state relay, running the LCD in 8-bit mode rather than 4-bit or putting a filtering capacitor on the clock of the LCD. I was able to solve it with a software hack (see function displayReset()).
+(seems resolved in latest iteration) The LCD display gets corrupted after turning on and off the relay. My relay does have a flyback diode so I don't think it's that. It's also optically isolated. I've tried powering from a different circuit than the air conditioner, twisting the positive and negative wires to the relay from the Arduino and wrapping the Arduino in foil to act as a faraday cage. None of that helped. I could try a separate power supply for the relay, a solid state relay, running the LCD in 8-bit mode rather than 4-bit or putting a filtering capacitor on the clock of the LCD. I was able to solve it with a software hack (see function displayReset()).
 
 # credits
 Idea from [Franklin Hu](https://www.youtube.com/watch?v=wpsMVukBvG0&t=152s).
@@ -33,11 +33,11 @@ Idea from [Franklin Hu](https://www.youtube.com/watch?v=wpsMVukBvG0&t=152s).
 # EasyEDA PCB for esp32-wroom-32d
 Update 9/22/22:
 
-[EasyEDA PCB](https://u.easyeda.com/tomwolfe/endall)
-
-Updated code coming soon for esp32/Arduino cloud. wifi + arduino cloud = control over the cloud
+[EasyEDA PCB](https://u.easyeda.com/tomwolfe/endall) 10th pcb schematic.
 
 I have a few extra PCBs from above that I can sell, contact me.
 
 # Setup
 [drivers for esp32](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers?tab=downloads)
+
+googlescript.gs: replace "INSERT_SPREADSHEET_ID_HERE" with your spreadsheet id for logging. [Tutorial](https://create.arduino.cc/projecthub/Arduino_Genuino/arduino-iot-cloud-google-sheets-integration-71b6bc) for setup.
