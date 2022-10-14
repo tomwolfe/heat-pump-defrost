@@ -110,7 +110,9 @@ void setup() {
   Serial.begin(9600);
   // This delay gives the chance to wait for a Serial Monitor without blocking if none is found
   delay(1500);
-  target=90.0;
+  if (target==NULL) {
+    target=90.0;
+  }
   pinMode(COMPRESSOR, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
   dht_exhaust.begin();
@@ -254,7 +256,7 @@ void difference() {
 }
 
 void defrostLogic() {
-  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.96)) || ((curr_diff>(max_diff_cycle*0.96))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0) || (bypass==true)) {
+  if (((curr_diff-last_diff)>MIN_DIFF_LAST) || (curr_diff>(max_diff*0.98)) || ((curr_diff>(max_diff_cycle*0.98))&&(max_diff_cycle>MIN_DIFF))  || (cycle==0) || (bypass==true)) {
     defrostSuccess();
   }
   else {
@@ -264,12 +266,9 @@ void defrostLogic() {
 
 void targetLogic() {  // Idea/TODO: maybe merge targetLogic() and outsideLogic()
   if (heat_index_ambient < target) {
-    if ( ((target_reached) && ((millis()-target_millis_start)>(60000*3)) && (heat_index_ambient < (target-SETBACK))) || (!target_reached) ) {
+    if (target_reached && ((millis()-target_millis_start)>(60000*3)) && (heat_index_ambient < (target-SETBACK))) {
       Serial.println(F("heat_index_ambient < (target-SETBACK)"));
       target_reached=false;
-    }
-    else {
-      targetHit();
     }
   }
   else {
@@ -289,11 +288,8 @@ void targetHit() {
 
 void outsideLogic() {
   if (temp_outside > UNDERTEMP) {
-    if ( ((undertemp_state) && ((millis()-undertemp_millis_start)>(60000*3)) && (temp_outside > (UNDERTEMP+SETBACK))) || (!undertemp_state) ) {
+    if ( ((undertemp_state) && ((millis()-undertemp_millis_start)>(60000*3)) && (temp_outside > (UNDERTEMP+SETBACK))) ) {
       undertemp_state=false;
-    }
-    else {
-      undertempHit();
     }
   }
   else {
@@ -313,7 +309,7 @@ void undertempHit() {
 }
 
 void turnOn() {
-  if (!compressor_state) {
+  if (!compressor_state && !undertemp_state && !target_reached) {
     Serial.println(F("turning on"));
     digitalWrite(COMPRESSOR, HIGH);
     compressor_state=true;
