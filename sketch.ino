@@ -1,3 +1,6 @@
+// from github: https://github.com/ddebasilio/esp8266-google-home-notifier
+#include <esp8266-google-home-notifier.h>
+
 // LinearRegression - Version:
 // from github: https://github.com/akkoyun/LinearRegression not in arduino library yet
 #include <LinearRegression.h>
@@ -104,6 +107,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 */
 
 #include "thingProperties.h"
+GoogleHomeNotifier ghn;
 
 void setup() {
   // Initialize serial and wait for port to open:
@@ -121,6 +125,14 @@ void setup() {
   btn.attachDoubleClick(doubleClick);
   btn.attachLongPressStart(longPress);
   btn.setPressTicks(2000); // long press duration
+
+  IPAddress ip(192, 168, 1, 118); // ip address of your google home mini nest
+
+  Serial.println("connecting to Google Home...");
+  
+  if (ghn.ip(ip, "EN", 8009) != true) { // this uses the IP address and language english
+    Serial.println(ghn.getLastError());
+  }
 
   // Defined in thingProperties.h
   initProperties();
@@ -281,11 +293,17 @@ void targetLogic() {  // Idea/TODO: maybe merge targetLogic() and outsideLogic()
 }
 
 void targetHit() {
-  Serial.println(F("heat_index_ambient > (target-SETBACK)"));
-  turnOff();
-  target_millis_start=millis();
-  bypass=true;
-  target_reached=true;
+  if (!target_reached) {
+    Serial.println(F("heat_index_ambient > (target-SETBACK)"));
+    turnOff();
+    target_millis_start=millis();
+    bypass=true;
+    target_reached=true;
+    if (ghn.notify("Heat pump target reached. Consider turning off the heat pump.") != true) {
+      Serial.println(ghn.getLastError());
+      return;
+    }
+  }
 }
 
 void outsideLogic() {
@@ -302,12 +320,18 @@ void outsideLogic() {
 }
 
 void undertempHit() {
-  Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
-  Serial.println(UNDERTEMP);
-  turnOff();
-  undertemp_millis_start=millis();
-  bypass=true;
-  undertemp_state=true;
+  if (!undertemp_state) {
+    Serial.print(F("temp_outside =< UNDERTEMP, UNDERTEMP: "));
+    Serial.println(UNDERTEMP);
+    turnOff();
+    undertemp_millis_start=millis();
+    bypass=true;
+    undertemp_state=true;
+    if (ghn.notify("It's currently freezing outside. Consider turning off the heat pump.") != true) {
+      Serial.println(ghn.getLastError());
+      return;
+    }
+  }
 }
 
 void turnOn() {
