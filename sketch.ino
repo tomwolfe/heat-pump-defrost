@@ -299,12 +299,17 @@ void targetHit() {
     target_millis_start=millis();
     bypass=true;
     target_reached=true;
-    if (ghn.notify("Heat pump target reached. Consider turning off the heat pump.") != true) {
+    String s = "Heat pump target of reached. It's currently " + String(heat_index_ambient, 1) + " degrees inside with a target of " + String(target, 1) + " degrees.";
+    if (ghn.notify(s.c_str()) != true) {
       Serial.println(ghn.getLastError());
       return;
     }
   }
 }
+
+//float roundnum(float val) {
+//  return roundf(val * 100) / 100;
+//}
 
 void outsideLogic() {
   if (temp_outside > UNDERTEMP) {
@@ -327,7 +332,8 @@ void undertempHit() {
     undertemp_millis_start=millis();
     bypass=true;
     undertemp_state=true;
-    if (ghn.notify("It's currently freezing outside. Consider turning off the heat pump.") != true) {
+    String s = "It's currently  " + String(temp_outside, 1) + " degrees outside. Consider turning off the heat pump.";
+    if (ghn.notify(s.c_str()) != true) {
       Serial.println(ghn.getLastError());
       return;
     }
@@ -659,7 +665,7 @@ void resetDisplay() {
 
 void playTone(int a_tone, int duration) {
   if (sound_state) {
-    tone(PIEZO_PIN, a_tone, duration);
+    //tone(PIEZO_PIN, a_tone, duration);
   }
 }
 
