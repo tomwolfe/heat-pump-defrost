@@ -110,9 +110,6 @@ void setup() {
   Serial.begin(9600);
   // This delay gives the chance to wait for a Serial Monitor without blocking if none is found
   delay(1500);
-  if (target==NULL) {
-    target=90.0;
-  }
   pinMode(COMPRESSOR, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
   dht_exhaust.begin();
@@ -124,7 +121,6 @@ void setup() {
   btn.attachDoubleClick(doubleClick);
   btn.attachLongPressStart(longPress);
   btn.setPressTicks(2000); // long press duration
-  compressor_state = (digitalRead(COMPRESSOR) == HIGH ? true : false);
 
   // Defined in thingProperties.h
   initProperties();
@@ -146,6 +142,12 @@ void setup() {
 void loop() {
   ArduinoCloud.update();
   // Your code here 
+  if (target==NULL) {
+    target=90;
+  }
+  if (compressor_state==NULL) {
+    compressor_state = false;
+  }
   current_millis_compressor=millis();
   current_millis_dht=millis();
   current_millis_lcd=millis();
