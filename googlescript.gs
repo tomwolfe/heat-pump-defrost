@@ -25,7 +25,7 @@
 
 // get sheet named RawData
 //var sheet = ss.getSheetByName('RawData');
-var id = "INSERT_SPREADSHEET_ID_HERE";
+var id = "1b0RYCXqgOw6mRc34qON_ndYnlMVBvrcvld0ffOdF6II";
 //var sheet = SpreadsheetApp.openById(id).getActiveSheet();
 var sheet = SpreadsheetApp.openById(id).getSheetByName("RawData");
 
@@ -36,7 +36,49 @@ var TIMESTAMP_COL = 1;  // column index of the timestamp column
 var sent = false;
 var freezing = false;
 
+function getData() {
+  var cs=CacheService.getScriptCache();//select which cache
+  var dt=JSON.parse(cs.get('mydata'));//parsing data back into object
+  if(dt) {
+    freezing=dt[0];
+    sent=dt[1];
+  }
+  //dt=vs;//get data
+  //ss.toast('accessed cache');//just to let me know I accessed cache
+}
+
+function setData() {
+  var cs=CacheService.getScriptCache();//select which cache
+  cs.put('mydata',JSON.stringify([freezing, sent]));//put data into cache
+}
+
+function test2() {
+  freezing=true;
+  setData();
+  getData();
+}
+function test() {
+  e={
+    "event_id": "EVENT_UUID",
+    "webhook_id": "WEBHOOK_ID",
+    "device_id": "DEVICE_UUID",
+    "thing_id": "THING_UUID",
+    "values": [
+      {
+        "id": "PROPERTY_UUID",
+        "name": "humidity",
+        "value": "PROPERTY_VALUE",
+        "persist": true/false,
+        "updated_at": "DATE",
+        "created_by": "USERID"
+      }
+    ]
+  }
+  doPost(e);
+}
+
 function doPost(e) {
+  getData();
   var cloudData = JSON.parse(e.postData.contents); // this is a json object containing all info coming from IoT Cloud
   //var webhook_id = cloudData.webhook_id; // really not using these three
   //var device_id = cloudData.device_id;
@@ -48,29 +90,29 @@ function doPost(e) {
   var incLength = values.length;
   var incNames = [];
   var incValues = [];
-  
   // read timestamp of incoming message
   var timestamp = values[0].updated_at;          // format: yyyy-MM-ddTHH:mm:ss.mmmZ
-  var date = new Date(Date.parse(timestamp)); 
+  var date = new Date(Date.parse(timestamp));
 
   for (var i = 0; i < incLength; i++) {
     incNames[i] = values[i].name;
     incValues[i] = values[i].value;
     if (incNames[i] == "temp_outside") {
-      if (incValues[i] <= 35) {
+      if (incValues[i] < 34) {
         freezing = true;
       }
-      if (incValues[i] >= 36)
+      if (incValues[i] > 36)
       {
         freezing=false;
-        sent=false; // keep from sending a ton of emails
+        sent=false;
       }
     }
   }
   if (freezing && !sent) {
     MailApp.sendEmail("tomwolfe@gmail.com", "Freezing " + values[0].value, "time recorded: " + timestamp);
     sent=true;
-  }
+  } 
+  setData();
   
   /*
   This if statement is due to the fact that duplicate messages arrive from the cloud!
