@@ -1,3 +1,7 @@
+// SinricPro - Version: Latest 
+#include <SinricPro.h>
+#include <SinricProThermostat.h>
+
 // from github: https://github.com/ddebasilio/esp8266-google-home-notifier
 #include <esp8266-google-home-notifier.h>
 
@@ -15,6 +19,10 @@
 #include <LiquidCrystal_I2C.h>
 
 #define DHTTYPE DHT11
+#define APP_KEY "7d7b05d9-924d-4a2d-bbf5-240a6469ae56"
+#define APP_SECRET SECRET_APP_SECRET
+#define THERMOSTAT_ID "634e255316440f13ff800f1e"
+
 const unsigned int COMPRESSOR = 2;
 const unsigned int TEMP_SENSOR_EXHAUST = 25;
 const unsigned int TEMP_SENSOR_AMBIENT = 33;
@@ -108,6 +116,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 #include "thingProperties.h"
 GoogleHomeNotifier ghn;
+GoogleHomeNotifier living_room;
 
 void setup() {
   // Initialize serial and wait for port to open:
@@ -126,14 +135,6 @@ void setup() {
   btn.attachLongPressStart(longPress);
   btn.setPressTicks(2000); // long press duration
 
-  IPAddress ip(192, 168, 1, 118); // ip address of your google home mini nest
-
-  Serial.println("connecting to Google Home...");
-  
-  if (ghn.ip(ip, "EN", 8009) != true) { // this uses the IP address and language english
-    Serial.println(ghn.getLastError());
-  }
-
   // Defined in thingProperties.h
   initProperties();
 
@@ -149,11 +150,25 @@ void setup() {
  */
   setDebugMessageLevel(2);
   ArduinoCloud.printDebugInfo();
+  
+  // google home notifier stuff
+  IPAddress ip(192, 168, 1, 118); // ip address of your google home mini nest
+  IPAddress ip_living_room(192, 168, 1, 152);
+  Serial.println("connecting to Google Home...");
+  if (ghn.ip(ip, "EN", 8009) != true) { // this uses the IP address and language english
+    Serial.println(ghn.getLastError());
+  }
+  if (living_room.ip(ip_living_room, "EN", 8009) != true) { // this uses the IP address and language english
+    Serial.println(living_room.getLastError());
+  }
+  
+  setupSinricPro();
 }
 
 void loop() {
   ArduinoCloud.update();
   // Your code here 
+  SinricPro.handle();
   if (target==NULL) {
     target=90;
   }
@@ -299,17 +314,17 @@ void targetHit() {
     target_millis_start=millis();
     bypass=true;
     target_reached=true;
-    String s = "Heat pump target of reached. It's currently " + String(heat_index_ambient, 1) + " degrees inside with a target of " + String(target, 1) + " degrees.";
+    String s = "Heat pump target reached. It's currently " + String(heat_index_ambient, 1) + " degrees inside with a target of " + String(target, 1) + " degrees.";
     if (ghn.notify(s.c_str()) != true) {
       Serial.println(ghn.getLastError());
       return;
     }
+    if (living_room.notify(s.c_str()) != true) {
+      Serial.println(living_room.getLastError());
+      return;
+    }
   }
 }
-
-//float roundnum(float val) {
-//  return roundf(val * 100) / 100;
-//}
 
 void outsideLogic() {
   if (temp_outside > UNDERTEMP) {
@@ -335,6 +350,10 @@ void undertempHit() {
     String s = "It's currently  " + String(temp_outside, 1) + " degrees outside. Consider turning off the heat pump.";
     if (ghn.notify(s.c_str()) != true) {
       Serial.println(ghn.getLastError());
+      return;
+    }
+    if (living_room.notify(s.c_str()) != true) {
+      Serial.println(living_room.getLastError());
       return;
     }
   }
@@ -665,7 +684,7 @@ void resetDisplay() {
 
 void playTone(int a_tone, int duration) {
   if (sound_state) {
-    //tone(PIEZO_PIN, a_tone, duration);
+    tone(PIEZO_PIN, a_tone, duration);
   }
 }
 
@@ -676,4 +695,42 @@ void playTone(int a_tone, int duration) {
 */
 void onTargetChange()  {
   // Add your code here to act upon Target change
+}
+
+
+// Sinric pro functions
+bool onPowerState(const String &deviceId, bool &state) {
+  Serial.printf("Thermostat %s turned %s\r\n", deviceId.c_str(), state?"on":"off");
+  return true; // request handled properly
+}
+
+bool onTargetTemperature(const String &deviceId, float &temperature) {
+  Serial.printf("Thermostat %s set temperature to %f\r\n", deviceId.c_str(), temperature);
+  target = temperature;
+  return true;
+}
+
+bool onAdjustTargetTemperature(const String & deviceId, float &temperatureDelta) {
+  target += temperatureDelta;  // calculate absolut temperature
+  Serial.printf("Thermostat %s changed temperature about %f to %f", deviceId.c_str(), temperatureDelta, target);
+  temperatureDelta = target; // return absolut temperature
+  return true;
+}
+
+bool onThermostatMode(const String &deviceId, String &mode) {
+  Serial.printf("Thermostat %s set to mode %s\r\n", deviceId.c_str(), mode.c_str());
+  return true;
+}
+
+void setupSinricPro() {
+  SinricProThermostat &myThermostat = SinricPro[THERMOSTAT_ID];
+  myThermostat.onPowerState(onPowerState);
+  myThermostat.onTargetTemperature(onTargetTemperature);
+  myThermostat.onAdjustTargetTemperature(onAdjustTargetTemperature);
+  myThermostat.onThermostatMode(onThermostatMode);
+
+  // setup SinricPro
+  SinricPro.onConnected([](){ Serial.printf("Connected to SinricPro\r\n"); }); 
+  SinricPro.onDisconnected([](){ Serial.printf("Disconnected from SinricPro\r\n"); });
+  SinricPro.begin(APP_KEY, APP_SECRET);
 }
