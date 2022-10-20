@@ -1,3 +1,8 @@
+#ifdef ESP32   
+       #include <WiFi.h>
+#endif
+#include <Arduino.h>
+
 // SinricPro - Version: Latest 
 #include <SinricPro.h>
 #include <SinricProThermostat.h>
@@ -21,7 +26,7 @@
 #define DHTTYPE DHT11
 #define APP_KEY "7d7b05d9-924d-4a2d-bbf5-240a6469ae56"
 #define APP_SECRET SECRET_APP_SECRET
-#define THERMOSTAT_ID "634e255316440f13ff800f1e"
+#define THERMOSTAT_ID "6350bb30134b2df11cd08698"
 
 const unsigned int COMPRESSOR = 2;
 const unsigned int TEMP_SENSOR_EXHAUST = 25;
@@ -36,9 +41,11 @@ float temp_ambient;
 //float temp_outside;
 float humidity_exhaust;
 float humidity_ambient;
+float last_humidity_ambient;
 float humidity_outside;
 float heat_index_exhaust;
 float heat_index_ambient;
+float last_heat_index_ambient;
 float heat_index_outside;
 //float target=90.0;
 const float SETBACK=2.0; // dht11 +-1 degree of accuracy
@@ -87,6 +94,7 @@ const float UNDERTEMP=34.0;
 bool undertemp_state=false;
 bool target_reached=false;
 float def_mins=0.0;
+unsigned long sinric_millis=0;
 
 DHT dht_exhaust(TEMP_SENSOR_EXHAUST, DHTTYPE);
 DHT dht_ambient(TEMP_SENSOR_AMBIENT, DHTTYPE);
@@ -148,8 +156,9 @@ void setup() {
      The default is 0 (only errors).
      Maximum is 4
  */
-  setDebugMessageLevel(2);
+  setDebugMessageLevel(4);
   ArduinoCloud.printDebugInfo();
+  setupWiFi();
   
   // google home notifier stuff
   IPAddress ip(192, 168, 1, 118); // ip address of your google home mini nest
@@ -161,7 +170,6 @@ void setup() {
   if (living_room.ip(ip_living_room, "EN", 8009) != true) { // this uses the IP address and language english
     Serial.println(living_room.getLastError());
   }
-  
   setupSinricPro();
 }
 
@@ -187,6 +195,7 @@ void loop() {
   }
   btn.tick();
   playTones();
+  sinricUpdate();
 }
 
 
@@ -706,14 +715,14 @@ bool onPowerState(const String &deviceId, bool &state) {
 
 bool onTargetTemperature(const String &deviceId, float &temperature) {
   Serial.printf("Thermostat %s set temperature to %f\r\n", deviceId.c_str(), temperature);
-  target = temperature;
+  target = ctof(temperature);
   return true;
 }
 
 bool onAdjustTargetTemperature(const String & deviceId, float &temperatureDelta) {
-  target += temperatureDelta;  // calculate absolut temperature
+  target += ctof(temperatureDelta);  // calculate absolut temperature
   Serial.printf("Thermostat %s changed temperature about %f to %f", deviceId.c_str(), temperatureDelta, target);
-  temperatureDelta = target; // return absolut temperature
+  temperatureDelta = ftoc(target); // return absolut temperature
   return true;
 }
 
@@ -723,6 +732,7 @@ bool onThermostatMode(const String &deviceId, String &mode) {
 }
 
 void setupSinricPro() {
+  Serial.println("setting up sinric");
   SinricProThermostat &myThermostat = SinricPro[THERMOSTAT_ID];
   myThermostat.onPowerState(onPowerState);
   myThermostat.onTargetTemperature(onTargetTemperature);
@@ -733,4 +743,42 @@ void setupSinricPro() {
   SinricPro.onConnected([](){ Serial.printf("Connected to SinricPro\r\n"); }); 
   SinricPro.onDisconnected([](){ Serial.printf("Disconnected from SinricPro\r\n"); });
   SinricPro.begin(APP_KEY, APP_SECRET);
+}
+
+void setupWiFi() {
+  Serial.printf("\r\n[Wifi]: Connecting");
+  WiFi.begin(SECRET_SSID, SECRET_OPTIONAL_PASS);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.printf(".");
+    delay(250);
+  }
+  IPAddress localIP = WiFi.localIP();
+  Serial.printf("connected!\r\n[WiFi]: IP-Address is %d.%d.%d.%d\r\n", localIP[0], localIP[1], localIP[2], localIP[3]);
+}
+
+void sinricUpdate() {
+  unsigned long actualMillis = millis();
+  if (actualMillis - sinric_millis < 60000) return; //only check every EVENT_WAIT_TIME milliseconds
+  if (heat_index_ambient == last_heat_index_ambient && humidity_ambient == last_humidity_ambient) return; // if no values changed do nothing.
+  SinricProThermostat &myThermostat = SinricPro[THERMOSTAT_ID];  // get temperaturesensor device
+  bool success = myThermostat.sendTemperatureEvent(ftoc(heat_index_ambient), humidity_ambient); // send event
+  if (success) {  // if event was sent successfuly, print temperature and humidity to serial
+    Serial.println("Temperature humidity sent");
+    Serial.println(heat_index_ambient);
+  } else {  // if sending event failed, print error message
+    Serial.printf("Something went wrong...could not send Event to server!\r\n");
+  }
+
+  last_heat_index_ambient = heat_index_ambient;  // save actual temperature for next compare
+  last_humidity_ambient = humidity_ambient;        // save actual humidity for next compare
+  sinric_millis = actualMillis;       // save actual time for next compare
+}
+
+float ftoc(float f) {
+  return (f-32)*0.5556;
+}
+
+float ctof(float c) {
+  return 1.8 * c + 32.0;
 }
